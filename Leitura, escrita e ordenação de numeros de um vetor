@@ -1,0 +1,213 @@
+.eqv	size	400
+
+.data
+	filename_input:	.asciiz "C:\\Users\\pedro\\OneDrive\\Itens diversos\\Faculdade\\Semestre 04\\Arquitetura de Computadores\\Mars\\Trabalho AV2\\lista.txt"
+	filename_output: .asciiz "C:\\Users\\pedro\\OneDrive\\Itens diversos\\Faculdade\\Semestre 04\\Arquitetura de Computadores\\Mars\\Trabalho AV2\\lista_ordenada.txt"
+   	
+   	input_buffer:	.space 1024
+	
+	vetor_int:	.align 2
+		 		.space 800
+		 	
+	vetor_str:  	.align 0
+		    		.space 1024
+    	
+.text
+    	#abrir arquivo
+    	li 	$v0, 13
+    	la 	$a0, filename_input
+    	li 	$a1, 0
+    	li 	$a2, 0
+    	syscall
+    	move $t0, $v0
+
+    	#ler arquivo
+    	li 	$v0, 14
+    	move 	$a0, $t0
+    	la 	$a1, input_buffer
+    	li 	$a2, 1024
+    	syscall
+    	move $t1, $v0 #salvou o num de bytes lidos ($t1)	
+	
+	#Atribuicoes a variaveis
+    	li 	$t2, 0 #Index no arquivo ($t2)
+    	li 	$t3, 0 #Numero ($t3)
+    	li 	$t4, 0 #Index no vetor ($t4)
+    	li 	$t5, 0 #Grandeza
+    	li 	$t6, 1 #Booleano - Sinal (1 positivo e -1 negativo)
+
+conversao_strint:
+    	lb 	$t7, input_buffer($t2) #le o byte da posicao $t2 ($t5)
+
+    	beq 	$t7, 44, add_vetor_int #checa se nao virgula (44 -> valor virgula ASCII)
+    	beq 	$t7, 45, negativo #checa se e negativo (45 -> valor negativo ASCII)
+    	beqz $t7, fim_entrada #checa se e nulo (0 -> valor NULL ASCII)	
+
+    	sub 	$t7, $t7, 48 #converte de ASCII para numero decimal (48 -> valor do 0 ASCII)
+
+    	beqz $t5, primeiro
+
+    	mul 	$t7, $t7, $t6 #torna o numero positivo ou negativo
+    	mul 	$t3, $t3, 10 #base 10 adicionando mais uma casa para que seja concatenado(adicao) a outro numero
+    	add 	$t3, $t3, $t7 #adiciona um num no $t3
+
+    	addi $t2, $t2, 1
+    	addi $t5, $t5, 1
+    	j 	conversao_strint
+
+negativo:
+	li 	$t6, -1 #set -1 para fazer multiplicacao
+    	addi $t2, $t2, 1
+    	j 	conversao_strint
+
+primeiro:
+    	mul 	$t7, $t7, $t6
+    	add 	$t3, $t3, $t7 #adiciona um numero no $t3
+
+    	addi $t2, $t2, 1
+    	addi $t5, $t5, 1
+    	j 	conversao_strint
+
+add_vetor_int:
+    	sw 	$t3, vetor_int($t4) #guarda $t3 na posicao $t4 do vetor
+
+    	addi $t4, $t4, 4 #pula para a proxima posicao do vetor (cada word tem 4 bytes)
+    	addi $t2, $t2, 1
+    	
+    	#reset de variavel
+    	li 	$t3, 0
+    	li 	$t5, 0
+    	li 	$t6, 1  
+    	
+    	j 	conversao_strint
+
+fim_entrada:
+    	sw 	$t3, vetor_int($t4) #guarda $t3 na posicao $t4 do vetor
+
+    	#fechar arquivo
+    	li 	$v0, 16
+    	la	$a0, filename_input
+    	syscall
+
+	li 	$t6, -4 ##Index no vetor ($t6)
+
+ordenacao_i:
+	addi	$t6, $t6, 4 #para nao repetir em cada funcao
+	addi $t4, $t6, 4 #$t4 sempre tem que estar uma casa a frente do $t6 | $t4 -> index auxiliar 
+	beq 	$t6, size, fim_ordenacao
+	
+	ordenacao_j:
+	
+		beq 		$t4, size, ordenacao_i
+		
+		#atribuicoes de numeros as variaveis
+		lw 		$t3, vetor_int($t6) 
+		lw 		$t5, vetor_int($t4)
+		
+		bgt 		$t3, $t5, trocar
+		
+		#caso nao for maior
+		lw 		$t3, vetor_int($t6) #fixa um index
+		addi 	$t4, $t4, 4
+		
+		j 		ordenacao_j
+
+	trocar:
+		sw 		$t5, vetor_int($t6)
+		sw 		$t3, vetor_int($t4)
+		
+		addi 	$t4, $t4, 4
+		
+		j 		ordenacao_j
+
+fim_ordenacao:
+	#reset de variavel
+	li 	$t4, 0
+	
+
+escrita_numeros:
+	
+	li	$t2, 0 #index vetor_str
+	li	$t4, 0 #Index vetor_int
+	li	$t5, -1 #Grandeza
+	
+	verificacao:
+    		li 	$t6, 1 #booleano - Sinal (1 positivo e -1 negativo)
+		
+		lw	$t3, vetor_int($t4) #Atribuindo numero a variavel
+		addi	$t4, $t4, 4
+		
+		#Positivo
+		bgez	$t3, conversao_intstr
+		
+		#Negativo
+		li	$t6, -1
+		mul	$t3, $t3, $t6
+		
+		
+		addi	$t5, $t5, 1 		#pular o negativo 
+		li	$t7, 45	  		#(45 -> valor negativo ASCII)
+		sb	$t7, vetor_str($t5)	#adiciona o char negativo
+		
+	conversao_intstr:
+		li	$t9, 1
+		contar_divisao_base_10:
+			mulo		$t9, $t9, 10
+			div		$t3, $t9 	#para pegar cada grandeza do numero
+			mflo		$t8      	#quociente - o restante do numero
+			
+			addi		$t5, $t5, 1
+			bnez		$t8, contar_divisao_base_10
+			
+			move 	$t2, $t5	#passa a grandeza para ser index e colocar dentro do vetor de forma invertida
+			
+		separador_numeros:
+			div		$t3, $t3, 10
+			mfhi		$t7 		#resto - numero
+			mflo		$t8 		#quociente - o restante do numero
+			move		$t3, $t8	#para reutilizar o numero na divisão
+			
+			addi		$t7, $t7, 48 #converte de numero decimal para ASCII (48 -> valor do 0 ASCII)
+			
+			sb		$t7, vetor_str($t2) #adicao do numero no vetor
+			subi		$t2, $t2, 1		#prox index para adicao do numero
+			
+			beq		$t3, 0, fim_separador #quociente == 0, para as divisoes
+			
+			j		separador_numeros
+		
+		fim_separador:
+			beq		$t4, size, escrita
+			addi		$t5, $t5, 1 	# t5 vai ser o prox index apos a insercao do numero
+			li		$t7, 44		#(44 -> valor virgula ASCII)
+			
+			sb		$t7, vetor_str($t5) #adiciona a virgula ao final do numero
+			
+			j		verificacao
+			
+	escrita:
+		#abrir arquivo
+    		li 	$v0, 13
+    		la 	$a0, filename_output
+    		li 	$a1, 1
+    		li 	$a2, 0
+    		syscall
+    		
+    		move 	$t0, $v0
+    		
+    		#escrevendo
+    		li	$v0, 15
+    		move	$a0, $t0
+    		la	$a1, vetor_str
+    		addi	$s0, $t5, 1
+    		move	$a2, $s0
+    		syscall
+    		
+    		#fechar arquivo
+    		li 	$v0, 16
+    		la	$a0, filename_output
+    		syscall
+    		
+termino:
+	li	$v0,10
+	syscall
